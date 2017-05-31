@@ -4,15 +4,20 @@ const src = '../../src'
 const Test = require('tapes')(require('tape'))
 const Sinon = require('sinon')
 const P = require('bluebird')
-const Handsoap = require('handsoap')
 const Client = require(`${src}/client`)
+const SoapClient = require(`${src}/soap`)
+const Record = require(`${src}/record`)
+const Profile = require(`${src}/profile`)
+const Result = require(`${src}/result`)
 
 Test('Client', clientTest => {
   let sandbox
 
   clientTest.beforeEach(t => {
     sandbox = Sinon.sandbox.create()
-    sandbox.stub(Handsoap, 'request')
+    sandbox.stub(SoapClient, 'request')
+    sandbox.stub(Result, 'buildFindResult')
+    sandbox.stub(Result, 'buildBaseResult')
     t.end()
   })
 
@@ -56,28 +61,150 @@ Test('Client', clientTest => {
   })
 
   clientTest.test('findProfile should', findProfileTest => {
-    findProfileTest.test('send SOAP request and return response', test => {
+    findProfileTest.test('send QueryDNSProfile messsage and return response', test => {
       let opts = { address: 'test.com' }
-      let profileName = 'MyProfile'
+      let profileId = 'MyProfile'
 
       let result = {}
-      Handsoap.request.returns(P.resolve(result))
+      SoapClient.request.returns(P.resolve(result))
+
+      let findResult = { code: 200 }
+      Result.buildFindResult.returns(findResult)
 
       let client = createClient(opts)
 
-      client.findProfile(profileName)
+      client.findProfile(profileId)
         .then(res => {
-          let message = Handsoap.request.firstCall.args[3]
+          let message = SoapClient.request.firstCall.args[3]
           test.ok(message.QueryDNSProfile)
           test.ok(message.QueryDNSProfile.TransactionID)
-          test.equal(message.QueryDNSProfile.ProfileID, profileName)
-          test.ok(Handsoap.request.calledWith(client._address, client._operation, client._action, message, client._options))
-          test.equal(res, result)
+          test.equal(message.QueryDNSProfile.ProfileID, profileId)
+          test.ok(SoapClient.request.calledWith(client._address, client._operation, client._action, message, client._options))
+          test.ok(Result.buildFindResult.calledWith(result))
+          test.equal(res, findResult)
           test.end()
         })
     })
 
     findProfileTest.end()
+  })
+
+  clientTest.test('createProfile should', createProfileTest => {
+    createProfileTest.test('send DefineDNSProfile message and return response', test => {
+      let opts = { address: 'test.com' }
+      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', partnerId: 10305, regexp: { pattern: '^.*$', replace: 'mm:001.504@leveloneproject.org' } })
+      let profile = new Profile({ id: 'Test', records: [record] })
+
+      let result = {}
+      SoapClient.request.returns(P.resolve(result))
+
+      let baseResult = { code: 201 }
+      Result.buildBaseResult.returns(baseResult)
+
+      let client = createClient(opts)
+
+      client.createProfile(profile)
+        .then(res => {
+          let message = SoapClient.request.firstCall.args[3]
+          test.ok(message.DefineDNSProfile)
+
+          let defineRecord = message.DefineDNSProfile
+          test.ok(defineRecord.TransactionID)
+          test.equal(defineRecord.ProfileID, profile.id)
+          test.equal(defineRecord.Tier, profile.tier)
+          test.equal(defineRecord.NAPTR.length, 1)
+
+          let naptrRecord = defineRecord.NAPTR[0]
+          test.equal(naptrRecord['$'].ttl, record.ttl)
+          test.equal(naptrRecord.DomainName, record.domain)
+          test.equal(naptrRecord.Preference, record.preference)
+          test.equal(naptrRecord.Order, record.order)
+          test.equal(naptrRecord.Flags, record.flags)
+          test.equal(naptrRecord.Service, record.service)
+          test.equal(naptrRecord.Replacement, record.replacement)
+          test.equal(naptrRecord.CountryCode, false)
+          test.equal(naptrRecord.Regexp['$'].pattern, record.regexp.pattern)
+          test.equal(naptrRecord.Regexp['_'], record.regexp.replace)
+          test.equal(naptrRecord.Partner['$'].id, record.partnerId)
+          test.notOk(naptrRecord.Partner['_'])
+
+          test.ok(Result.buildBaseResult.calledWith(result))
+          test.equal(res, baseResult)
+
+          test.end()
+        })
+    })
+
+    createProfileTest.test('handle partner id for all', test => {
+      let opts = { address: 'test.com' }
+      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', regexp: { pattern: '^.*$', replace: 'mm:001.504@leveloneproject.org' } })
+      let profile = new Profile({ id: 'Test', records: [record] })
+
+      let result = {}
+      SoapClient.request.returns(P.resolve(result))
+
+      let baseResult = { code: 201 }
+      Result.buildBaseResult.returns(baseResult)
+
+      let client = createClient(opts)
+
+      client.createProfile(profile)
+        .then(res => {
+          let message = SoapClient.request.firstCall.args[3]
+          let defineRecord = message.DefineDNSProfile
+
+          let naptrRecord = defineRecord.NAPTR[0]
+          test.equal(naptrRecord.Partner['$'].id, record.partnerId)
+          test.equal(naptrRecord.Partner['_'], 'ALL')
+
+          test.end()
+        })
+    })
+
+    createProfileTest.test('convert RegExp to string with no leading or trailing slashes', test => {
+      let opts = { address: 'test.com' }
+      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', regexp: { pattern: RegExp(/^.*$/), replace: 'mm:001.504@leveloneproject.org' } })
+      let profile = new Profile({ id: 'Test', records: [record] })
+
+      let result = {}
+      SoapClient.request.returns(P.resolve(result))
+
+      let baseResult = { code: 201 }
+      Result.buildBaseResult.returns(baseResult)
+
+      let client = createClient(opts)
+
+      client.createProfile(profile)
+        .then(res => {
+          let message = SoapClient.request.firstCall.args[3]
+          let defineRecord = message.DefineDNSProfile
+
+          let naptrRecord = defineRecord.NAPTR[0]
+          test.equal(naptrRecord.Regexp['$'].pattern, '^.*$')
+          test.equal(naptrRecord.Regexp['_'], record.regexp.replace)
+
+          test.end()
+        })
+    })
+
+    createProfileTest.test('throw error if no records in profile', test => {
+      let opts = { address: 'test.com' }
+      let profile = new Profile({ id: 'test' })
+
+      let client = createClient(opts)
+
+      client.createProfile(profile)
+        .then(res => {
+          test.fail('Should have thrown error')
+          test.end()
+        })
+        .catch(err => {
+          test.equal(err.message, 'Profile must contain at least one record')
+          test.end()
+        })
+    })
+
+    createProfileTest.end()
   })
 
   clientTest.end()
