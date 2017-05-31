@@ -207,5 +207,54 @@ Test('Client', clientTest => {
     createProfileTest.end()
   })
 
+  clientTest.test('updateProfile should', updateProfileTest => {
+    updateProfileTest.test('send UpdateDNSProfile message and return response', test => {
+      let opts = { address: 'test.com' }
+      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', partnerId: 10305, regexp: { pattern: '^.*$', replace: 'mm:001.504@leveloneproject.org' } })
+      let profile = new Profile({ id: 'Test', records: [record] })
+
+      let result = {}
+      SoapClient.request.returns(P.resolve(result))
+
+      let baseResult = { code: 201 }
+      Result.buildBaseResult.returns(baseResult)
+
+      let client = createClient(opts)
+
+      client.updateProfile(profile)
+        .then(res => {
+          let message = SoapClient.request.firstCall.args[3]
+          test.ok(message.UpdateDNSProfile)
+
+          let defineRecord = message.UpdateDNSProfile
+          test.ok(defineRecord.TransactionID)
+          test.equal(defineRecord.ProfileID, profile.id)
+          test.equal(defineRecord.Tier, profile.tier)
+          test.equal(defineRecord.NAPTR.length, 1)
+
+          let naptrRecord = defineRecord.NAPTR[0]
+          test.equal(naptrRecord['$'].ttl, record.ttl)
+          test.equal(naptrRecord.DomainName, record.domain)
+          test.equal(naptrRecord.Preference, record.preference)
+          test.equal(naptrRecord.Order, record.order)
+          test.equal(naptrRecord.Flags, record.flags)
+          test.equal(naptrRecord.Service, record.service)
+          test.equal(naptrRecord.Replacement, record.replacement)
+          test.equal(naptrRecord.CountryCode, false)
+          test.equal(naptrRecord.Regexp['$'].pattern, record.regexp.pattern)
+          test.equal(naptrRecord.Regexp['_'], record.regexp.replace)
+          test.equal(naptrRecord.Partner['$'].id, record.partnerId)
+          test.notOk(naptrRecord.Partner['_'])
+
+          test.ok(Result.buildBaseResult.calledWith(result))
+          test.equal(res, baseResult)
+
+          test.end()
+        })
+    })
+
+    updateProfileTest.end()
+  })
+
   clientTest.end()
 })

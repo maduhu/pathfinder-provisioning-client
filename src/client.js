@@ -19,8 +19,14 @@ class Client {
   }
 
   createProfile (profile) {
-    const method = 'DefineDNSProfile'
+    return this._createOrUpdateProfile('DefineDNSProfile', profile)
+  }
 
+  updateProfile (profile) {
+    return this._createOrUpdateProfile('UpdateDNSProfile', profile)
+  }
+
+  _createOrUpdateProfile (method, profile) {
     if (profile.records.length === 0) {
       return P.reject(new Error('Profile must contain at least one record'))
     }
