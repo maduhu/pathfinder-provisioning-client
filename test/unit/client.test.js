@@ -4,20 +4,29 @@ const src = '../../src'
 const Test = require('tapes')(require('tape'))
 const Sinon = require('sinon')
 const P = require('bluebird')
-const Client = require(`${src}/client`)
 const SoapClient = require(`${src}/soap`)
 const Record = require(`${src}/record`)
 const Profile = require(`${src}/profile`)
 const Result = require(`${src}/result`)
+const Proxyquire = require('proxyquire')
 
 Test('Client', clientTest => {
   let sandbox
+  let Client
+  let PhoneNumberUtil
+  let phoneUtilInstance
 
   clientTest.beforeEach(t => {
     sandbox = Sinon.sandbox.create()
     sandbox.stub(SoapClient, 'request')
     sandbox.stub(Result, 'buildFindResult')
     sandbox.stub(Result, 'buildBaseResult')
+
+    phoneUtilInstance = { parse: sandbox.stub(), isValidNumber: sandbox.stub() }
+    PhoneNumberUtil = { getInstance: sandbox.stub().returns(phoneUtilInstance) }
+
+    Client = Proxyquire(`${src}/client`, { 'google-libphonenumber': { PhoneNumberUtil } })
+
     t.end()
   })
 
@@ -254,6 +263,100 @@ Test('Client', clientTest => {
     })
 
     updateProfileTest.end()
+  })
+
+  clientTest.test('activatePhoneNumber should', activateNumberTest => {
+    activateNumberTest.test('send Activate message and return response', test => {
+      let opts = { address: 'test.com' }
+      let profileId = 'MyProfile'
+      let countryCode = 1
+      let nationalNumber = 5158675309
+      let phoneNumber = `+${countryCode}${nationalNumber}`
+
+      let parsed = sandbox.stub()
+      parsed.getCountryCode = sandbox.stub().returns(countryCode)
+      parsed.getNationalNumber = sandbox.stub().returns(nationalNumber)
+
+      phoneUtilInstance.parse.returns(parsed)
+      phoneUtilInstance.isValidNumber.returns(true)
+
+      let result = {}
+      SoapClient.request.returns(P.resolve(result))
+
+      let baseResult = { code: 200 }
+      Result.buildBaseResult.returns(baseResult)
+
+      let client = createClient(opts)
+
+      client.activatePhoneNumber(phoneNumber, profileId)
+        .then(res => {
+          let message = SoapClient.request.firstCall.args[3]
+          test.ok(message.Activate)
+          test.ok(message.Activate.TransactionID)
+          test.ok(message.Activate.TN)
+          test.equal(message.Activate.TN.Base, nationalNumber)
+          test.equal(message.Activate.TN.CountryCode, countryCode)
+          test.equal(message.Activate.DNSProfileID, profileId)
+          test.equal(message.Activate.Status, 'active')
+          test.equal(message.Activate.Tier, 2)
+          test.ok(SoapClient.request.calledWith(client._address, client._operation, client._action, message, client._options))
+          test.ok(Result.buildBaseResult.calledWith(result))
+          test.equal(res, baseResult)
+          test.end()
+        })
+    })
+
+    activateNumberTest.test('handle parse error', test => {
+      let opts = { address: 'test.com' }
+      let profileId = 'MyProfile'
+      let countryCode = 1
+      let nationalNumber = 5158675309
+      let phoneNumber = `+${countryCode}${nationalNumber}`
+
+      let parseError = new Error('The phone number is too long')
+      phoneUtilInstance.parse.throws(parseError)
+
+      let client = createClient(opts)
+
+      client.activatePhoneNumber(phoneNumber, profileId)
+        .then(res => {
+          test.fail('Should have thrown error')
+          test.end()
+        })
+        .catch(err => {
+          test.equal(err, parseError)
+          test.end()
+        })
+    })
+
+    activateNumberTest.test('throw error if invalid number', test => {
+      let opts = { address: 'test.com' }
+      let profileId = 'MyProfile'
+      let countryCode = 1
+      let nationalNumber = 5158675309
+      let phoneNumber = `+${countryCode}${nationalNumber}`
+
+      let parsed = sandbox.stub()
+      parsed.getCountryCode = sandbox.stub().returns(countryCode)
+      parsed.getNationalNumber = sandbox.stub().returns(nationalNumber)
+
+      phoneUtilInstance.parse.returns(parsed)
+      phoneUtilInstance.isValidNumber.returns(false)
+
+      let client = createClient(opts)
+
+      client.activatePhoneNumber(phoneNumber, profileId)
+        .then(res => {
+          test.fail('Should have thrown error')
+          test.end()
+        })
+        .catch(err => {
+          test.equal(err.message, 'Invalid phone number cannot be activated')
+          test.end()
+        })
+    })
+
+    activateNumberTest.end()
   })
 
   clientTest.end()

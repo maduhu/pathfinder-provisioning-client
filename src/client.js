@@ -1,6 +1,8 @@
 'use strict'
 
 const P = require('bluebird')
+const LibPhoneNumber = require('google-libphonenumber')
+const PhoneNumberUtil = LibPhoneNumber.PhoneNumberUtil
 const SoapClient = require('./soap')
 const Result = require('./result')
 
@@ -12,6 +14,19 @@ class Client {
     this._action = opts.action || ''
 
     this._options = { namespace: this._namespace }
+  }
+
+  activatePhoneNumber (phone, profileId) {
+    return P.try(() => {
+      let parsed = this._parsePhoneNumber(phone)
+      if (!parsed.isValid) {
+        throw new Error('Invalid phone number cannot be activated')
+      }
+
+      let body = { 'TN': { 'Base': parsed.nationalNumber, 'CountryCode': parsed.countryCode }, 'Status': 'active', 'DNSProfileID': profileId, 'Tier': 2 }
+
+      return this._sendRequest(this._buildRequest('Activate', body)).then(Result.buildBaseResult)
+    })
   }
 
   findProfile (profileId) {
@@ -87,6 +102,14 @@ class Client {
       pattern = pattern.toString().replace(/^\/|\/$/g, '')
     }
     return { '$': { pattern }, '_': record.regexp.replace }
+  }
+
+  _parsePhoneNumber (phone) {
+    const phoneUtil = PhoneNumberUtil.getInstance()
+
+    const cleaned = phone.replace(/[^\d]/g, '')
+    const parsed = phoneUtil.parse(`+${cleaned}`)
+    return { countryCode: parsed.getCountryCode(), nationalNumber: parsed.getNationalNumber(), isValid: phoneUtil.isValidNumber(parsed) }
   }
 }
 
