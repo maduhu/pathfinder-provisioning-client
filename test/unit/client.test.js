@@ -359,5 +359,94 @@ Test('Client', clientTest => {
     activateNumberTest.end()
   })
 
+  clientTest.test('deactivatePhoneNumber should', deactivateNumberTest => {
+    deactivateNumberTest.test('send Deactivate message and return response', test => {
+      let opts = { address: 'test.com' }
+      let countryCode = 1
+      let nationalNumber = 5158675309
+      let phoneNumber = `+${countryCode}${nationalNumber}`
+
+      let parsed = sandbox.stub()
+      parsed.getCountryCode = sandbox.stub().returns(countryCode)
+      parsed.getNationalNumber = sandbox.stub().returns(nationalNumber)
+
+      phoneUtilInstance.parse.returns(parsed)
+      phoneUtilInstance.isValidNumber.returns(true)
+
+      let result = {}
+      SoapClient.request.returns(P.resolve(result))
+
+      let baseResult = { code: 200 }
+      Result.buildBaseResult.returns(baseResult)
+
+      let client = createClient(opts)
+
+      client.deactivatePhoneNumber(phoneNumber)
+        .then(res => {
+          let message = SoapClient.request.firstCall.args[3]
+          test.ok(message.Deactivate)
+          test.ok(message.Deactivate.TransactionID)
+          test.ok(message.Deactivate.TN)
+          test.equal(message.Deactivate.TN.Base, nationalNumber)
+          test.equal(message.Deactivate.TN.CountryCode, countryCode)
+          test.equal(message.Deactivate.Tier, 2)
+          test.ok(SoapClient.request.calledWith(client._address, client._operation, client._action, message, client._options))
+          test.ok(Result.buildBaseResult.calledWith(result))
+          test.equal(res, baseResult)
+          test.end()
+        })
+    })
+
+    deactivateNumberTest.test('handle parse error', test => {
+      let opts = { address: 'test.com' }
+      let countryCode = 1
+      let nationalNumber = 5158675309
+      let phoneNumber = `+${countryCode}${nationalNumber}`
+
+      let parseError = new Error('The phone number is too long')
+      phoneUtilInstance.parse.throws(parseError)
+
+      let client = createClient(opts)
+
+      client.deactivatePhoneNumber(phoneNumber)
+        .then(res => {
+          test.fail('Should have thrown error')
+          test.end()
+        })
+        .catch(err => {
+          test.equal(err, parseError)
+          test.end()
+        })
+    })
+
+    deactivateNumberTest.test('throw error if invalid number', test => {
+      let opts = { address: 'test.com' }
+      let countryCode = 1
+      let nationalNumber = 5158675309
+      let phoneNumber = `+${countryCode}${nationalNumber}`
+
+      let parsed = sandbox.stub()
+      parsed.getCountryCode = sandbox.stub().returns(countryCode)
+      parsed.getNationalNumber = sandbox.stub().returns(nationalNumber)
+
+      phoneUtilInstance.parse.returns(parsed)
+      phoneUtilInstance.isValidNumber.returns(false)
+
+      let client = createClient(opts)
+
+      client.deactivatePhoneNumber(phoneNumber)
+        .then(res => {
+          test.fail('Should have thrown error')
+          test.end()
+        })
+        .catch(err => {
+          test.equal(err.message, 'Invalid phone number cannot be deactivated')
+          test.end()
+        })
+    })
+
+    deactivateNumberTest.end()
+  })
+
   clientTest.end()
 })

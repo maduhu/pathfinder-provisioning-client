@@ -16,6 +16,19 @@ class Client {
     this._options = { namespace: this._namespace }
   }
 
+  deactivatePhoneNumber (phone) {
+    return P.try(() => {
+      let parsed = this._parsePhoneNumber(phone)
+      if (!parsed.isValid) {
+        throw new Error('Invalid phone number cannot be deactivated')
+      }
+
+      let body = { 'TN': this._createPhoneNumberField(parsed), 'Tier': 2 }
+
+      return this._sendRequest(this._buildRequest('Deactivate', body)).then(Result.buildBaseResult)
+    })
+  }
+
   activatePhoneNumber (phone, profileId) {
     return P.try(() => {
       let parsed = this._parsePhoneNumber(phone)
@@ -23,7 +36,7 @@ class Client {
         throw new Error('Invalid phone number cannot be activated')
       }
 
-      let body = { 'TN': { 'Base': parsed.nationalNumber, 'CountryCode': parsed.countryCode }, 'Status': 'active', 'DNSProfileID': profileId, 'Tier': 2 }
+      let body = { 'TN': this._createPhoneNumberField(parsed), 'Status': 'active', 'DNSProfileID': profileId, 'Tier': 2 }
 
       return this._sendRequest(this._buildRequest('Activate', body)).then(Result.buildBaseResult)
     })
@@ -102,6 +115,10 @@ class Client {
       pattern = pattern.toString().replace(/^\/|\/$/g, '')
     }
     return { '$': { pattern }, '_': record.regexp.replace }
+  }
+
+  _createPhoneNumberField (parsed) {
+    return { 'Base': parsed.nationalNumber, 'CountryCode': parsed.countryCode }
   }
 
   _parsePhoneNumber (phone) {
