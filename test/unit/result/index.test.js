@@ -8,15 +8,17 @@ const Proxyquire = require('proxyquire')
 Test('Result', resultTest => {
   let sandbox
   let baseResultSpy
-  let findResultSpy
+  let queryNumberResultSpy
+  let queryProfileResultSpy
   let Result
 
   resultTest.beforeEach(t => {
     sandbox = Sinon.sandbox.create()
 
     baseResultSpy = sandbox.spy()
-    findResultSpy = sandbox.spy()
-    Result = Proxyquire(`${src}/result`, { './base': baseResultSpy, './find': findResultSpy })
+    queryNumberResultSpy = sandbox.spy()
+    queryProfileResultSpy = sandbox.spy()
+    Result = Proxyquire(`${src}/result`, { './base': baseResultSpy, './query-number': queryNumberResultSpy, './query-profile': queryProfileResultSpy })
 
     t.end()
   })
@@ -26,30 +28,43 @@ Test('Result', resultTest => {
     t.end()
   })
 
-  resultTest.test('buildBaseResult should', baseResultTest => {
-    baseResultTest.test('create base result', test => {
+  resultTest.test('base should', baseTest => {
+    baseTest.test('create base result', test => {
       let soapResponse = {}
-      Result.buildBaseResult(soapResponse)
+      Result.base(soapResponse)
 
       test.ok(baseResultSpy.calledWithNew())
       test.ok(baseResultSpy.calledWith(soapResponse))
       test.end()
     })
 
-    baseResultTest.end()
+    baseTest.end()
   })
 
-  resultTest.test('buildFindResult should', findResultTest => {
-    findResultTest.test('create find result', test => {
+  resultTest.test('queryProfile should', queryProfileTest => {
+    queryProfileTest.test('create query profile result', test => {
       let soapResponse = {}
-      Result.buildFindResult(soapResponse)
+      Result.queryProfile(soapResponse)
 
-      test.ok(findResultSpy.calledWithNew())
-      test.ok(findResultSpy.calledWith(soapResponse))
+      test.ok(queryProfileResultSpy.calledWithNew())
+      test.ok(queryProfileResultSpy.calledWith(soapResponse))
       test.end()
     })
 
-    findResultTest.end()
+    queryProfileTest.end()
+  })
+
+  resultTest.test('queryNumber should', queryNumberTest => {
+    queryNumberTest.test('create query number result', test => {
+      let soapResponse = {}
+      Result.queryNumber(soapResponse)
+
+      test.ok(queryNumberResultSpy.calledWithNew())
+      test.ok(queryNumberResultSpy.calledWith(soapResponse))
+      test.end()
+    })
+
+    queryNumberTest.end()
   })
 
   resultTest.end()

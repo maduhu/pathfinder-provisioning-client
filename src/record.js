@@ -13,6 +13,37 @@ class Record {
     this.partnerId = opts.partnerId || -1
     this.flags = opts.flags || 'u'
   }
+
+  toSoap () {
+    return {
+      '$': { ttl: this.ttl },
+      'DomainName': this.domain,
+      'Preference': this.preference,
+      'Order': this.order,
+      'Flags': this.flags,
+      'Service': this.service,
+      'Regexp': this._createRegexpField(),
+      'Replacement': this.replacement,
+      'CountryCode': false,
+      'Partner': this._createPartnerField()
+    }
+  }
+
+  _createPartnerField () {
+    let partner = { '$': { id: this.partnerId } }
+    if (this.partnerId === -1) {
+      partner['_'] = 'ALL'
+    }
+    return partner
+  }
+
+  _createRegexpField () {
+    let pattern = this.regexp.pattern
+    if (pattern instanceof RegExp) {
+      pattern = pattern.toString().replace(/^\/|\/$/g, '')
+    }
+    return { '$': { pattern }, '_': this.regexp.replace }
+  }
 }
 
 module.exports = Record

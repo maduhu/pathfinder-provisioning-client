@@ -16,6 +16,10 @@ class Profile {
   addRecord (record) {
     this.records.push(record)
   }
+
+  toSoap () {
+    return { 'ProfileID': this.id, 'Tier': this.tier, 'NAPTR': this.records.map(r => r.toSoap()) }
+  }
 }
 
 module.exports = Profile

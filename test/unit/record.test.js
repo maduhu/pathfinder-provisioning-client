@@ -74,5 +74,47 @@ Test('Record', recordTest => {
     constructorTest.end()
   })
 
+  recordTest.test('toSoap should', toSoapTest => {
+    toSoapTest.test('convert record to object for SOAP API', test => {
+      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', partnerId: 10305, regexp: { pattern: '^.*$', replace: 'mm:001.504@leveloneproject.org' } })
+
+      let soapRecord = record.toSoap()
+      test.equal(soapRecord['$'].ttl, record.ttl)
+      test.equal(soapRecord.DomainName, record.domain)
+      test.equal(soapRecord.Preference, record.preference)
+      test.equal(soapRecord.Order, record.order)
+      test.equal(soapRecord.Flags, record.flags)
+      test.equal(soapRecord.Service, record.service)
+      test.equal(soapRecord.Replacement, record.replacement)
+      test.equal(soapRecord.CountryCode, false)
+      test.equal(soapRecord.Regexp['$'].pattern, record.regexp.pattern)
+      test.equal(soapRecord.Regexp['_'], record.regexp.replace)
+      test.equal(soapRecord.Partner['$'].id, record.partnerId)
+      test.notOk(soapRecord.Partner['_'])
+      test.end()
+    })
+
+    toSoapTest.test('handle partner id for all', test => {
+      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', regexp: { pattern: '^.*$', replace: 'mm:001.504@leveloneproject.org' } })
+
+      let soapRecord = record.toSoap()
+      test.equal(soapRecord.Partner['$'].id, record.partnerId)
+      test.equal(soapRecord.Partner['_'], 'ALL')
+      test.end()
+    })
+
+    toSoapTest.test('convert RegExp to string with no leading or trailing slashes', test => {
+      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', regexp: { pattern: RegExp(/^.*$/), replace: 'mm:001.504@leveloneproject.org' } })
+
+      let soapRecord = record.toSoap()
+      test.equal(soapRecord.Regexp['$'].pattern, '^.*$')
+      test.equal(soapRecord.Regexp['_'], record.regexp.replace)
+
+      test.end()
+    })
+
+    toSoapTest.end()
+  })
+
   recordTest.end()
 })

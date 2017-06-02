@@ -70,5 +70,25 @@ Test('Profile', profileTest => {
     addRecordTest.end()
   })
 
+  profileTest.test('toSoap should', toSoapTest => {
+    toSoapTest.test('convert profile to object for SOAP API', test => {
+      let soapRecord = {}
+      let record = { toSoap: sandbox.stub().returns(soapRecord) }
+
+      let profileId = 'test'
+
+      let profile = new Profile({ id: profileId, records: [record] })
+      let soapProfile = profile.toSoap()
+
+      test.equal(soapProfile.ProfileID, profileId)
+      test.equal(soapProfile.Tier, 2)
+      test.equal(soapProfile.NAPTR.length, 1)
+      test.equal(soapProfile.NAPTR[0], soapRecord)
+      test.end()
+    })
+
+    toSoapTest.end()
+  })
+
   profileTest.end()
 })

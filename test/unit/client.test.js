@@ -5,28 +5,21 @@ const Test = require('tapes')(require('tape'))
 const Sinon = require('sinon')
 const P = require('bluebird')
 const SoapClient = require(`${src}/soap`)
-const Record = require(`${src}/record`)
 const Profile = require(`${src}/profile`)
 const Result = require(`${src}/result`)
-const Proxyquire = require('proxyquire')
+const Phone = require(`${src}/phone`)
+const Client = require(`${src}/client`)
 
 Test('Client', clientTest => {
   let sandbox
-  let Client
-  let PhoneNumberUtil
-  let phoneUtilInstance
 
   clientTest.beforeEach(t => {
     sandbox = Sinon.sandbox.create()
     sandbox.stub(SoapClient, 'request')
-    sandbox.stub(Result, 'buildFindResult')
-    sandbox.stub(Result, 'buildBaseResult')
-
-    phoneUtilInstance = { parse: sandbox.stub(), isValidNumber: sandbox.stub() }
-    PhoneNumberUtil = { getInstance: sandbox.stub().returns(phoneUtilInstance) }
-
-    Client = Proxyquire(`${src}/client`, { 'google-libphonenumber': { PhoneNumberUtil } })
-
+    sandbox.stub(Result, 'queryNumber')
+    sandbox.stub(Result, 'queryProfile')
+    sandbox.stub(Result, 'base')
+    sandbox.stub(Phone, 'parse')
     t.end()
   })
 
@@ -77,8 +70,8 @@ Test('Client', clientTest => {
       let result = {}
       SoapClient.request.returns(P.resolve(result))
 
-      let findResult = { code: 200 }
-      Result.buildFindResult.returns(findResult)
+      let queryProfileResult = { code: 200 }
+      Result.queryProfile.returns(queryProfileResult)
 
       let client = createClient(opts)
 
@@ -89,8 +82,8 @@ Test('Client', clientTest => {
           test.ok(message.QueryDNSProfile.TransactionID)
           test.equal(message.QueryDNSProfile.ProfileID, profileId)
           test.ok(SoapClient.request.calledWith(client._address, client._operation, client._action, message, client._options))
-          test.ok(Result.buildFindResult.calledWith(result))
-          test.equal(res, findResult)
+          test.ok(Result.queryProfile.calledWith(result))
+          test.equal(res, queryProfileResult)
           test.end()
         })
     })
@@ -101,14 +94,16 @@ Test('Client', clientTest => {
   clientTest.test('createProfile should', createProfileTest => {
     createProfileTest.test('send DefineDNSProfile message and return response', test => {
       let opts = { address: 'test.com' }
-      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', partnerId: 10305, regexp: { pattern: '^.*$', replace: 'mm:001.504@leveloneproject.org' } })
-      let profile = new Profile({ id: 'Test', records: [record] })
+      let profile = new Profile({ id: 'Test', records: [{}] })
+
+      let soapProfile = { 'Test': 'test' }
+      profile.toSoap = sandbox.stub().returns(soapProfile)
 
       let result = {}
       SoapClient.request.returns(P.resolve(result))
 
       let baseResult = { code: 201 }
-      Result.buildBaseResult.returns(baseResult)
+      Result.base.returns(baseResult)
 
       let client = createClient(opts)
 
@@ -119,78 +114,10 @@ Test('Client', clientTest => {
 
           let defineRecord = message.DefineDNSProfile
           test.ok(defineRecord.TransactionID)
-          test.equal(defineRecord.ProfileID, profile.id)
-          test.equal(defineRecord.Tier, profile.tier)
-          test.equal(defineRecord.NAPTR.length, 1)
+          test.equal(defineRecord.Test, 'test')
 
-          let naptrRecord = defineRecord.NAPTR[0]
-          test.equal(naptrRecord['$'].ttl, record.ttl)
-          test.equal(naptrRecord.DomainName, record.domain)
-          test.equal(naptrRecord.Preference, record.preference)
-          test.equal(naptrRecord.Order, record.order)
-          test.equal(naptrRecord.Flags, record.flags)
-          test.equal(naptrRecord.Service, record.service)
-          test.equal(naptrRecord.Replacement, record.replacement)
-          test.equal(naptrRecord.CountryCode, false)
-          test.equal(naptrRecord.Regexp['$'].pattern, record.regexp.pattern)
-          test.equal(naptrRecord.Regexp['_'], record.regexp.replace)
-          test.equal(naptrRecord.Partner['$'].id, record.partnerId)
-          test.notOk(naptrRecord.Partner['_'])
-
-          test.ok(Result.buildBaseResult.calledWith(result))
+          test.ok(Result.base.calledWith(result))
           test.equal(res, baseResult)
-
-          test.end()
-        })
-    })
-
-    createProfileTest.test('handle partner id for all', test => {
-      let opts = { address: 'test.com' }
-      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', regexp: { pattern: '^.*$', replace: 'mm:001.504@leveloneproject.org' } })
-      let profile = new Profile({ id: 'Test', records: [record] })
-
-      let result = {}
-      SoapClient.request.returns(P.resolve(result))
-
-      let baseResult = { code: 201 }
-      Result.buildBaseResult.returns(baseResult)
-
-      let client = createClient(opts)
-
-      client.createProfile(profile)
-        .then(res => {
-          let message = SoapClient.request.firstCall.args[3]
-          let defineRecord = message.DefineDNSProfile
-
-          let naptrRecord = defineRecord.NAPTR[0]
-          test.equal(naptrRecord.Partner['$'].id, record.partnerId)
-          test.equal(naptrRecord.Partner['_'], 'ALL')
-
-          test.end()
-        })
-    })
-
-    createProfileTest.test('convert RegExp to string with no leading or trailing slashes', test => {
-      let opts = { address: 'test.com' }
-      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', regexp: { pattern: RegExp(/^.*$/), replace: 'mm:001.504@leveloneproject.org' } })
-      let profile = new Profile({ id: 'Test', records: [record] })
-
-      let result = {}
-      SoapClient.request.returns(P.resolve(result))
-
-      let baseResult = { code: 201 }
-      Result.buildBaseResult.returns(baseResult)
-
-      let client = createClient(opts)
-
-      client.createProfile(profile)
-        .then(res => {
-          let message = SoapClient.request.firstCall.args[3]
-          let defineRecord = message.DefineDNSProfile
-
-          let naptrRecord = defineRecord.NAPTR[0]
-          test.equal(naptrRecord.Regexp['$'].pattern, '^.*$')
-          test.equal(naptrRecord.Regexp['_'], record.regexp.replace)
 
           test.end()
         })
@@ -219,14 +146,16 @@ Test('Client', clientTest => {
   clientTest.test('updateProfile should', updateProfileTest => {
     updateProfileTest.test('send UpdateDNSProfile message and return response', test => {
       let opts = { address: 'test.com' }
-      let record = new Record({ order: 10, preference: 1, service: 'E2U+mm', partnerId: 10305, regexp: { pattern: '^.*$', replace: 'mm:001.504@leveloneproject.org' } })
-      let profile = new Profile({ id: 'Test', records: [record] })
+      let profile = new Profile({ id: 'Test', records: [{}] })
+
+      let soapProfile = { 'Test': 'test' }
+      profile.toSoap = sandbox.stub().returns(soapProfile)
 
       let result = {}
       SoapClient.request.returns(P.resolve(result))
 
       let baseResult = { code: 201 }
-      Result.buildBaseResult.returns(baseResult)
+      Result.base.returns(baseResult)
 
       let client = createClient(opts)
 
@@ -237,25 +166,9 @@ Test('Client', clientTest => {
 
           let defineRecord = message.UpdateDNSProfile
           test.ok(defineRecord.TransactionID)
-          test.equal(defineRecord.ProfileID, profile.id)
-          test.equal(defineRecord.Tier, profile.tier)
-          test.equal(defineRecord.NAPTR.length, 1)
+          test.equal(defineRecord.Test, 'test')
 
-          let naptrRecord = defineRecord.NAPTR[0]
-          test.equal(naptrRecord['$'].ttl, record.ttl)
-          test.equal(naptrRecord.DomainName, record.domain)
-          test.equal(naptrRecord.Preference, record.preference)
-          test.equal(naptrRecord.Order, record.order)
-          test.equal(naptrRecord.Flags, record.flags)
-          test.equal(naptrRecord.Service, record.service)
-          test.equal(naptrRecord.Replacement, record.replacement)
-          test.equal(naptrRecord.CountryCode, false)
-          test.equal(naptrRecord.Regexp['$'].pattern, record.regexp.pattern)
-          test.equal(naptrRecord.Regexp['_'], record.regexp.replace)
-          test.equal(naptrRecord.Partner['$'].id, record.partnerId)
-          test.notOk(naptrRecord.Partner['_'])
-
-          test.ok(Result.buildBaseResult.calledWith(result))
+          test.ok(Result.base.calledWith(result))
           test.equal(res, baseResult)
 
           test.end()
@@ -273,23 +186,20 @@ Test('Client', clientTest => {
       let nationalNumber = 5158675309
       let phoneNumber = `+${countryCode}${nationalNumber}`
 
-      let parsed = sandbox.stub()
-      parsed.getCountryCode = sandbox.stub().returns(countryCode)
-      parsed.getNationalNumber = sandbox.stub().returns(nationalNumber)
-
-      phoneUtilInstance.parse.returns(parsed)
-      phoneUtilInstance.isValidNumber.returns(true)
+      Phone.parse.returns({ nationalNumber, countryCode })
 
       let result = {}
       SoapClient.request.returns(P.resolve(result))
 
       let baseResult = { code: 200 }
-      Result.buildBaseResult.returns(baseResult)
+      Result.base.returns(baseResult)
 
       let client = createClient(opts)
 
       client.activatePhoneNumber(phoneNumber, profileId)
         .then(res => {
+          test.ok(Phone.parse.calledWith(phoneNumber))
+
           let message = SoapClient.request.firstCall.args[3]
           test.ok(message.Activate)
           test.ok(message.Activate.TransactionID)
@@ -300,7 +210,7 @@ Test('Client', clientTest => {
           test.equal(message.Activate.Status, 'active')
           test.equal(message.Activate.Tier, 2)
           test.ok(SoapClient.request.calledWith(client._address, client._operation, client._action, message, client._options))
-          test.ok(Result.buildBaseResult.calledWith(result))
+          test.ok(Result.base.calledWith(result))
           test.equal(res, baseResult)
           test.end()
         })
@@ -314,7 +224,7 @@ Test('Client', clientTest => {
       let phoneNumber = `+${countryCode}${nationalNumber}`
 
       let parseError = new Error('The phone number is too long')
-      phoneUtilInstance.parse.throws(parseError)
+      Phone.parse.throws(parseError)
 
       let client = createClient(opts)
 
@@ -325,33 +235,6 @@ Test('Client', clientTest => {
         })
         .catch(err => {
           test.equal(err, parseError)
-          test.end()
-        })
-    })
-
-    activateNumberTest.test('throw error if invalid number', test => {
-      let opts = { address: 'test.com' }
-      let profileId = 'MyProfile'
-      let countryCode = 1
-      let nationalNumber = 5158675309
-      let phoneNumber = `+${countryCode}${nationalNumber}`
-
-      let parsed = sandbox.stub()
-      parsed.getCountryCode = sandbox.stub().returns(countryCode)
-      parsed.getNationalNumber = sandbox.stub().returns(nationalNumber)
-
-      phoneUtilInstance.parse.returns(parsed)
-      phoneUtilInstance.isValidNumber.returns(false)
-
-      let client = createClient(opts)
-
-      client.activatePhoneNumber(phoneNumber, profileId)
-        .then(res => {
-          test.fail('Should have thrown error')
-          test.end()
-        })
-        .catch(err => {
-          test.equal(err.message, 'Invalid phone number cannot be activated')
           test.end()
         })
     })
@@ -366,23 +249,20 @@ Test('Client', clientTest => {
       let nationalNumber = 5158675309
       let phoneNumber = `+${countryCode}${nationalNumber}`
 
-      let parsed = sandbox.stub()
-      parsed.getCountryCode = sandbox.stub().returns(countryCode)
-      parsed.getNationalNumber = sandbox.stub().returns(nationalNumber)
-
-      phoneUtilInstance.parse.returns(parsed)
-      phoneUtilInstance.isValidNumber.returns(true)
+      Phone.parse.returns({ nationalNumber, countryCode })
 
       let result = {}
       SoapClient.request.returns(P.resolve(result))
 
       let baseResult = { code: 200 }
-      Result.buildBaseResult.returns(baseResult)
+      Result.base.returns(baseResult)
 
       let client = createClient(opts)
 
       client.deactivatePhoneNumber(phoneNumber)
         .then(res => {
+          test.ok(Phone.parse.calledWith(phoneNumber))
+
           let message = SoapClient.request.firstCall.args[3]
           test.ok(message.Deactivate)
           test.ok(message.Deactivate.TransactionID)
@@ -391,7 +271,7 @@ Test('Client', clientTest => {
           test.equal(message.Deactivate.TN.CountryCode, countryCode)
           test.equal(message.Deactivate.Tier, 2)
           test.ok(SoapClient.request.calledWith(client._address, client._operation, client._action, message, client._options))
-          test.ok(Result.buildBaseResult.calledWith(result))
+          test.ok(Result.base.calledWith(result))
           test.equal(res, baseResult)
           test.end()
         })
@@ -404,7 +284,7 @@ Test('Client', clientTest => {
       let phoneNumber = `+${countryCode}${nationalNumber}`
 
       let parseError = new Error('The phone number is too long')
-      phoneUtilInstance.parse.throws(parseError)
+      Phone.parse.throws(parseError)
 
       let client = createClient(opts)
 
@@ -419,33 +299,67 @@ Test('Client', clientTest => {
         })
     })
 
-    deactivateNumberTest.test('throw error if invalid number', test => {
+    deactivateNumberTest.end()
+  })
+
+  clientTest.test('getProfileForPhoneNumber should', getProfileTest => {
+    getProfileTest.test('send QueryTN message and return response', test => {
       let opts = { address: 'test.com' }
       let countryCode = 1
       let nationalNumber = 5158675309
       let phoneNumber = `+${countryCode}${nationalNumber}`
 
-      let parsed = sandbox.stub()
-      parsed.getCountryCode = sandbox.stub().returns(countryCode)
-      parsed.getNationalNumber = sandbox.stub().returns(nationalNumber)
+      Phone.parse.returns({ nationalNumber, countryCode })
 
-      phoneUtilInstance.parse.returns(parsed)
-      phoneUtilInstance.isValidNumber.returns(false)
+      let result = {}
+      SoapClient.request.returns(P.resolve(result))
+
+      let queryNumberResult = { code: 200 }
+      Result.queryNumber.returns(queryNumberResult)
 
       let client = createClient(opts)
 
-      client.deactivatePhoneNumber(phoneNumber)
+      client.getProfileForPhoneNumber(phoneNumber)
+        .then(res => {
+          test.ok(Phone.parse.calledWith(phoneNumber))
+
+          let message = SoapClient.request.firstCall.args[3]
+          test.ok(message.QueryTN)
+          test.ok(message.QueryTN.TransactionID)
+          test.ok(message.QueryTN.TN)
+          test.equal(message.QueryTN.TN.Base, nationalNumber)
+          test.equal(message.QueryTN.TN.CountryCode, countryCode)
+          test.equal(message.QueryTN.Tier, 2)
+          test.ok(SoapClient.request.calledWith(client._address, client._operation, client._action, message, client._options))
+          test.ok(Result.queryNumber.calledWith(result))
+          test.equal(res, queryNumberResult)
+          test.end()
+        })
+    })
+
+    getProfileTest.test('handle parse error', test => {
+      let opts = { address: 'test.com' }
+      let countryCode = 1
+      let nationalNumber = 5158675309
+      let phoneNumber = `+${countryCode}${nationalNumber}`
+
+      let parseError = new Error('The phone number is too long')
+      Phone.parse.throws(parseError)
+
+      let client = createClient(opts)
+
+      client.getProfileForPhoneNumber(phoneNumber)
         .then(res => {
           test.fail('Should have thrown error')
           test.end()
         })
         .catch(err => {
-          test.equal(err.message, 'Invalid phone number cannot be deactivated')
+          test.equal(err, parseError)
           test.end()
         })
     })
 
-    deactivateNumberTest.end()
+    getProfileTest.end()
   })
 
   clientTest.end()

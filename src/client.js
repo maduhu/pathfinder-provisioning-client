@@ -1,10 +1,9 @@
 'use strict'
 
 const P = require('bluebird')
-const LibPhoneNumber = require('google-libphonenumber')
-const PhoneNumberUtil = LibPhoneNumber.PhoneNumberUtil
 const SoapClient = require('./soap')
 const Result = require('./result')
+const Phone = require('./phone')
 
 class Client {
   constructor (opts) {
@@ -16,34 +15,32 @@ class Client {
     this._options = { namespace: this._namespace }
   }
 
+  getProfileForPhoneNumber (phone) {
+    return this._parsePhoneNumber(phone).then(parsed => {
+      const body = this._createPhoneNumberField(parsed)
+      return this._sendRequest(this._buildRequest('QueryTN', body)).then(Result.queryNumber)
+    })
+  }
+
   deactivatePhoneNumber (phone) {
-    return P.try(() => {
-      let parsed = this._parsePhoneNumber(phone)
-      if (!parsed.isValid) {
-        throw new Error('Invalid phone number cannot be deactivated')
-      }
-
-      let body = { 'TN': this._createPhoneNumberField(parsed), 'Tier': 2 }
-
-      return this._sendRequest(this._buildRequest('Deactivate', body)).then(Result.buildBaseResult)
+    return this._parsePhoneNumber(phone).then(parsed => {
+      const body = this._createPhoneNumberField(parsed)
+      return this._sendRequest(this._buildRequest('Deactivate', body)).then(Result.base)
     })
   }
 
   activatePhoneNumber (phone, profileId) {
-    return P.try(() => {
-      let parsed = this._parsePhoneNumber(phone)
-      if (!parsed.isValid) {
-        throw new Error('Invalid phone number cannot be activated')
-      }
+    return this._parsePhoneNumber(phone).then(parsed => {
+      const body = this._createPhoneNumberField(parsed)
+      body['Status'] = 'active'
+      body['DNSProfileID'] = profileId
 
-      let body = { 'TN': this._createPhoneNumberField(parsed), 'Status': 'active', 'DNSProfileID': profileId, 'Tier': 2 }
-
-      return this._sendRequest(this._buildRequest('Activate', body)).then(Result.buildBaseResult)
+      return this._sendRequest(this._buildRequest('Activate', body)).then(Result.base)
     })
   }
 
   findProfile (profileId) {
-    return this._sendRequest(this._buildRequest('QueryDNSProfile', { 'ProfileID': profileId })).then(Result.buildFindResult)
+    return this._sendRequest(this._buildRequest('QueryDNSProfile', { 'ProfileID': profileId })).then(Result.queryProfile)
   }
 
   createProfile (profile) {
@@ -54,14 +51,18 @@ class Client {
     return this._createOrUpdateProfile('UpdateDNSProfile', profile)
   }
 
+  _parsePhoneNumber (phoneNumber) {
+    return P.try(() => Phone.parse(phoneNumber))
+  }
+
   _createOrUpdateProfile (method, profile) {
     if (profile.records.length === 0) {
       return P.reject(new Error('Profile must contain at least one record'))
     }
 
-    let body = { 'ProfileID': profile.id, 'Tier': profile.tier, 'NAPTR': profile.records.map(this._convertRecordForSoap.bind(this)) }
+    const body = profile.toSoap()
 
-    return this._sendRequest(this._buildRequest(method, body)).then(Result.buildBaseResult)
+    return this._sendRequest(this._buildRequest(method, body)).then(Result.base)
   }
 
   _generateTransactionId () {
@@ -86,47 +87,8 @@ class Client {
     return SoapClient.request(this._address, this._operation, this._action, req, this._options)
   }
 
-  _convertRecordForSoap (record) {
-    return {
-      '$': { ttl: record.ttl },
-      'DomainName': record.domain,
-      'Preference': record.preference,
-      'Order': record.order,
-      'Flags': record.flags,
-      'Service': record.service,
-      'Regexp': this._createRegexpField(record),
-      'Replacement': record.replacement,
-      'CountryCode': false,
-      'Partner': this._createPartnerField(record)
-    }
-  }
-
-  _createPartnerField (record) {
-    let partner = { '$': { id: record.partnerId } }
-    if (record.partnerId === -1) {
-      partner['_'] = 'ALL'
-    }
-    return partner
-  }
-
-  _createRegexpField (record) {
-    let pattern = record.regexp.pattern
-    if (pattern instanceof RegExp) {
-      pattern = pattern.toString().replace(/^\/|\/$/g, '')
-    }
-    return { '$': { pattern }, '_': record.regexp.replace }
-  }
-
   _createPhoneNumberField (parsed) {
-    return { 'Base': parsed.nationalNumber, 'CountryCode': parsed.countryCode }
-  }
-
-  _parsePhoneNumber (phone) {
-    const phoneUtil = PhoneNumberUtil.getInstance()
-
-    const cleaned = phone.replace(/[^\d]/g, '')
-    const parsed = phoneUtil.parse(`+${cleaned}`)
-    return { countryCode: parsed.getCountryCode(), nationalNumber: parsed.getNationalNumber(), isValid: phoneUtil.isValidNumber(parsed) }
+    return { 'TN': { 'Base': parsed.nationalNumber, 'CountryCode': parsed.countryCode }, 'Tier': 2 }
   }
 }
 

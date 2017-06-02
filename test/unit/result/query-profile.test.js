@@ -3,9 +3,9 @@
 const src = '../../../src'
 const Test = require('tapes')(require('tape'))
 const Sinon = require('sinon')
-const FindResult = require(`${src}/result/find`)
+const QueryProfileResult = require(`${src}/result/query-profile`)
 
-Test('Result', resultTest => {
+Test('QueryProfileResult', resultTest => {
   let sandbox
 
   resultTest.beforeEach(t => {
@@ -19,6 +19,28 @@ Test('Result', resultTest => {
   })
 
   resultTest.test('constructor should', constructorTest => {
+    constructorTest.test('handle error with no ResponseData', test => {
+      let soapResponse = {
+        Envelope: {
+          Body: {
+            Response: {
+              ReturnCode: { '_': '404' },
+              TextMessage: [
+                { '_': 'Not Found' },
+                { '_': 'DNS profile does not exist' },
+                { '_': 'Date: Tue May 30 18:54:10 GMT 2017' }
+              ]
+            }
+          }
+        }
+      }
+
+      let queryProfileResult = new QueryProfileResult(soapResponse)
+      test.equal(queryProfileResult.code, 404)
+      test.deepEqual(queryProfileResult.data, {})
+      test.end()
+    })
+
     constructorTest.test('parse response and set data field', test => {
       let profileId = 'TestDFSP'
       let tier = 3
@@ -39,21 +61,21 @@ Test('Result', resultTest => {
         Envelope: {
           Body: {
             Response: {
-              ReturnCode: { '_': '201' },
+              ReturnCode: { '_': '200' },
               TextMessage: [
-                { '_': 'Created' },
-                { '_': 'Profile TESTDFSP16 successfully created' },
+                { '_': 'OK' },
+                { '_': 'DNS profile queried successfully' },
                 { '_': 'Date: Tue May 30 18:54:10 GMT 2017' }
               ],
               ResponseData: {
                 DNSProfileData: {
                   ProfileID: profileId,
-                  Tier: tier,
-                  Customer: { '$': { id: customerId } },
+                  Tier: tier.toString(),
+                  Customer: { '$': { id: customerId.toString() } },
                   IsInUse: 'False',
                   DateCreated: dateCreated,
                   NAPTR: [{
-                    '$': { ttl },
+                    '$': { ttl: ttl.toString() },
                     DomainName: domain,
                     Order: order.toString(),
                     Preference: preference.toString(),
@@ -61,7 +83,7 @@ Test('Result', resultTest => {
                     Service: service,
                     Regexp: { '$': { pattern: regexpPattern }, '_': regexpReplace },
                     Replacement: replacement,
-                    Partner: { '$': { id: partnerId } }
+                    Partner: { '$': { id: partnerId.toString() } }
                   }]
                 }
               }
@@ -70,18 +92,18 @@ Test('Result', resultTest => {
         }
       }
 
-      let findResult = new FindResult(soapResponse)
-      test.equal(findResult.code, 201)
+      let queryProfileResult = new QueryProfileResult(soapResponse)
+      test.equal(queryProfileResult.code, 200)
 
-      let findData = findResult.data
-      test.equal(findData.customerId, customerId)
-      test.notOk(findData.isInUse)
-      test.equal(findData.created, dateCreated)
-      test.equal(findData.profile.id, profileId)
-      test.equal(findData.profile.tier, tier)
-      test.equal(findData.profile.records.length, 1)
+      let queryProfileData = queryProfileResult.data
+      test.equal(queryProfileData.customerId, customerId)
+      test.notOk(queryProfileData.isInUse)
+      test.equal(queryProfileData.created, dateCreated)
+      test.equal(queryProfileData.profile.id, profileId)
+      test.equal(queryProfileData.profile.tier, tier)
+      test.equal(queryProfileData.profile.records.length, 1)
 
-      let recordData = findData.profile.records[0]
+      let recordData = queryProfileData.profile.records[0]
       test.equal(recordData.ttl, ttl)
       test.equal(recordData.domain, domain)
       test.equal(recordData.order, order)
@@ -114,20 +136,20 @@ Test('Result', resultTest => {
         Envelope: {
           Body: {
             Response: {
-              ReturnCode: { '_': '201' },
+              ReturnCode: { '_': '200' },
               TextMessage: [
-                { '_': 'Created' },
-                { '_': 'Profile TESTDFSP16 successfully created' },
+                { '_': 'OK' },
+                { '_': 'DNS profile queried successfully' },
                 { '_': 'Date: Tue May 30 18:54:10 GMT 2017' }
               ],
               ResponseData: {
                 DNSProfileData: {
                   ProfileID: profileId,
-                  Customer: { '$': { id: customerId } },
+                  Customer: { '$': { id: customerId.toString() } },
                   IsInUse: 'False',
                   DateCreated: dateCreated,
                   NAPTR: {
-                    '$': { ttl },
+                    '$': { ttl: ttl.toString() },
                     DomainName: domain,
                     Order: order.toString(),
                     Preference: preference.toString(),
@@ -135,7 +157,7 @@ Test('Result', resultTest => {
                     Service: service,
                     Regexp: { '$': { pattern: regexpPattern }, '_': regexpReplace },
                     Replacement: replacement,
-                    Partner: { '$': { id: partnerId } }
+                    Partner: { '$': { id: partnerId.toString() } }
                   }
                 }
               }
@@ -144,17 +166,17 @@ Test('Result', resultTest => {
         }
       }
 
-      let findResult = new FindResult(soapResponse)
-      test.equal(findResult.code, 201)
+      let queryProfileResult = new QueryProfileResult(soapResponse)
+      test.equal(queryProfileResult.code, 200)
 
-      let findData = findResult.data
-      test.equal(findData.customerId, customerId)
-      test.notOk(findData.isInUse)
-      test.equal(findData.created, dateCreated)
-      test.equal(findData.profile.id, profileId)
-      test.equal(findData.profile.records.length, 1)
+      let queryResultData = queryProfileResult.data
+      test.equal(queryResultData.customerId, customerId)
+      test.notOk(queryResultData.isInUse)
+      test.equal(queryResultData.created, dateCreated)
+      test.equal(queryResultData.profile.id, profileId)
+      test.equal(queryResultData.profile.records.length, 1)
 
-      let recordData = findData.profile.records[0]
+      let recordData = queryResultData.profile.records[0]
       test.equal(recordData.ttl, ttl)
       test.equal(recordData.domain, domain)
       test.equal(recordData.order, order)
