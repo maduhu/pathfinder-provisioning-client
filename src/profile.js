@@ -17,6 +17,10 @@ class Profile {
     this.records.push(record)
   }
 
+  clearRecords () {
+    this.records.length = 0
+  }
+
   toSoap () {
     return { 'ProfileID': this.id, 'Tier': this.tier, 'NAPTR': this.records.map(r => r.toSoap()) }
   }

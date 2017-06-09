@@ -70,6 +70,38 @@ Test('Profile', profileTest => {
     addRecordTest.end()
   })
 
+  profileTest.test('clearRecords should', clearRecordsTest => {
+    clearRecordsTest.test('clear the current records', test => {
+      let record = { order: 1, preference: 5 }
+      let opts = { id: 'test', records: [record] }
+
+      let profile = new Profile(opts)
+      test.equal(profile.records.length, 1)
+
+      profile.clearRecords()
+      test.equal(profile.records.length, 0)
+
+      test.end()
+    })
+
+    clearRecordsTest.test('not create new records array', test => {
+      let record = { order: 1, preference: 5 }
+      let opts = { id: 'test', records: [record] }
+
+      let profile = new Profile(opts)
+      test.equal(profile.records.length, 1)
+
+      let existingRecods = profile.records
+
+      profile.clearRecords()
+      test.equal(profile.records, existingRecods)
+
+      test.end()
+    })
+
+    clearRecordsTest.end()
+  })
+
   profileTest.test('toSoap should', toSoapTest => {
     toSoapTest.test('convert profile to object for SOAP API', test => {
       let soapRecord = {}
