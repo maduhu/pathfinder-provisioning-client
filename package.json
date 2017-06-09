@@ -1,6 +1,6 @@
 {
   "name": "@leveloneproject/pathfinder-provisioning-client",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Library for provisioning PathFinder records.",
   "main": "src/index.js",
   "license": "SEE LICENSE IN LICENSE",
