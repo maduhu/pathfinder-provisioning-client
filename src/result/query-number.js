@@ -7,7 +7,12 @@ class QueryNumberResult extends BaseResult {
   parseData (soapResponse) {
     if (!soapResponse.Envelope.Body.Response.ResponseData) return {}
 
-    let numberData = soapResponse.Envelope.Body.Response.ResponseData.TNData
+    let tnData = soapResponse.Envelope.Body.Response.ResponseData.TNData
+    let numbers = Array.isArray(tnData) ? tnData : [tnData]
+    return numbers.map(this._convertToRecord)
+  }
+
+  _convertToRecord (numberData) {
     return {
       customerId: parseInt(numberData.Customer['$'].id),
       created: numberData.DateCreated,

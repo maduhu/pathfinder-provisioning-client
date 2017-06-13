@@ -303,7 +303,7 @@ Test('Client', clientTest => {
   })
 
   clientTest.test('getProfileForPhoneNumber should', getProfileTest => {
-    getProfileTest.test('send QueryTN message and return response', test => {
+    getProfileTest.test('send QueryTN message and return response with single data object', test => {
       let opts = { address: 'test.com' }
       let countryCode = 1
       let nationalNumber = 5158675309
@@ -314,7 +314,8 @@ Test('Client', clientTest => {
       let result = {}
       SoapClient.request.returns(P.resolve(result))
 
-      let queryNumberResult = { code: 200 }
+      let dataResult = {}
+      let queryNumberResult = { code: 200, data: [dataResult] }
       Result.queryNumber.returns(queryNumberResult)
 
       let client = createClient(opts)
@@ -332,12 +333,48 @@ Test('Client', clientTest => {
           test.equal(message.QueryTN.Tier, 2)
           test.ok(SoapClient.request.calledWith(client._address, client._operation, client._action, message, client._options))
           test.ok(Result.queryNumber.calledWith(result))
-          test.equal(res, queryNumberResult)
+          test.notOk(Array.isArray(res.data))
+          test.deepEqual(res.data, dataResult)
           test.end()
         })
     })
 
-    getProfileTest.test('handle parse error', test => {
+    getProfileTest.test('handle result with empty array data object', test => {
+      let opts = { address: 'test.com' }
+      let countryCode = 1
+      let nationalNumber = 5158675309
+      let phoneNumber = `+${countryCode}${nationalNumber}`
+
+      Phone.parse.returns({ nationalNumber, countryCode })
+
+      let result = {}
+      SoapClient.request.returns(P.resolve(result))
+
+      let queryNumberResult = { code: 200, data: [] }
+      Result.queryNumber.returns(queryNumberResult)
+
+      let client = createClient(opts)
+
+      client.getProfileForPhoneNumber(phoneNumber)
+        .then(res => {
+          test.ok(Phone.parse.calledWith(phoneNumber))
+
+          let message = SoapClient.request.firstCall.args[3]
+          test.ok(message.QueryTN)
+          test.ok(message.QueryTN.TransactionID)
+          test.ok(message.QueryTN.TN)
+          test.equal(message.QueryTN.TN.Base, nationalNumber)
+          test.equal(message.QueryTN.TN.CountryCode, countryCode)
+          test.equal(message.QueryTN.Tier, 2)
+          test.ok(SoapClient.request.calledWith(client._address, client._operation, client._action, message, client._options))
+          test.ok(Result.queryNumber.calledWith(result))
+          test.notOk(Array.isArray(res.data))
+          test.deepEqual(res.data, {})
+          test.end()
+        })
+    })
+
+    getProfileTest.test('handle phone parse error', test => {
       let opts = { address: 'test.com' }
       let countryCode = 1
       let nationalNumber = 5158675309
@@ -360,6 +397,37 @@ Test('Client', clientTest => {
     })
 
     getProfileTest.end()
+  })
+
+  clientTest.test('getActivatedPhoneNumbers should', getActivatedTest => {
+    getActivatedTest.test('send QueryTN message and return response with data array object', test => {
+      let opts = { address: 'test.com' }
+      let profileId = 'TestProfile'
+
+      let result = {}
+      SoapClient.request.returns(P.resolve(result))
+
+      let queryNumberResult = { code: 200, data: [{ profileId, tn: '+15158675309' }, { profileId, tn: '+15158675308' }] }
+      Result.queryNumber.returns(queryNumberResult)
+
+      let client = createClient(opts)
+
+      client.getActivatedPhoneNumbers(profileId)
+        .then(res => {
+          let message = SoapClient.request.firstCall.args[3]
+          test.ok(message.QueryTN)
+          test.ok(message.QueryTN.TransactionID)
+          test.equal(message.QueryTN.DNSProfileID, profileId)
+          test.notOk(message.QueryTN.TN)
+          test.ok(SoapClient.request.calledWith(client._address, client._operation, client._action, message, client._options))
+          test.ok(Result.queryNumber.calledWith(result))
+          test.ok(Array.isArray(res.data))
+          test.equal(res.data.length, queryNumberResult.data.length)
+          test.end()
+        })
+    })
+
+    getActivatedTest.end()
   })
 
   clientTest.end()

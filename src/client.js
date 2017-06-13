@@ -15,10 +15,19 @@ class Client {
     this._options = { namespace: this._namespace }
   }
 
+  getActivatedPhoneNumbers (profileId) {
+    return this._sendRequest(this._buildRequest('QueryTN', { 'DNSProfileID': profileId })).then(Result.queryNumber)
+  }
+
   getProfileForPhoneNumber (phone) {
     return this._parsePhoneNumber(phone).then(parsed => {
       const body = this._createPhoneNumberField(parsed)
-      return this._sendRequest(this._buildRequest('QueryTN', body)).then(Result.queryNumber)
+      return this._sendRequest(this._buildRequest('QueryTN', body))
+        .then(Result.queryNumber)
+        .then(result => {
+          result.data = result.data.length > 0 ? result.data.shift() : {}
+          return result
+        })
     })
   }
 
