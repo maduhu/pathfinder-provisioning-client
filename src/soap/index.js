@@ -3,9 +3,10 @@
 const P = require('bluebird')
 const Request = require('request')
 const Xml = require('./xml')
+const Errors = require('../errors')
 
 class SoapClient {
-  request (url, operation, action, body, options) {
+  request (url, operation, body, options) {
     const xml = this._envelope(operation, body, options)
 
     const requestOptions = {
@@ -16,7 +17,7 @@ class SoapClient {
     return P.promisify(Request.post, { multiArgs: true })(requestOptions)
       .spread((response, body) => {
         if (response.statusCode !== 200) {
-          throw new Error(`Error with HTTP status code ${response.statusCode}: ${body}`)
+          throw new Errors.HttpStatusError(response.statusCode, body)
         }
         return Xml.toJs(body)
       })

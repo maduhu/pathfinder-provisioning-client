@@ -3,6 +3,7 @@
 const src = '../../src'
 const Test = require('tapes')(require('tape'))
 const Sinon = require('sinon')
+const Errors = require(`${src}/errors`)
 const Proxyquire = require('proxyquire')
 
 Test('Phone', phoneTest => {
@@ -90,6 +91,7 @@ Test('Phone', phoneTest => {
         test.fail('Should have thrown error')
         test.end()
       } catch (err) {
+        test.ok(err instanceof Errors.InvalidPhoneNumberError)
         test.equal(err.message, 'The phone number is invalid')
         test.end()
       }

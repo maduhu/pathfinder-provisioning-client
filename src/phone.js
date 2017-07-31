@@ -1,6 +1,8 @@
 'use strict'
 
 const LibPhoneNumber = require('google-libphonenumber')
+const Errors = require('./errors')
+
 const PhoneNumber = LibPhoneNumber.PhoneNumber
 const PhoneNumberFormat = LibPhoneNumber.PhoneNumberFormat
 const PhoneNumberUtil = LibPhoneNumber.PhoneNumberUtil.getInstance()
@@ -10,7 +12,7 @@ exports.parse = (phone) => {
 
   const parsed = PhoneNumberUtil.parse(`+${cleaned}`)
   if (!PhoneNumberUtil.isValidNumber(parsed)) {
-    throw new Error('The phone number is invalid')
+    throw new Errors.InvalidPhoneNumberError()
   }
 
   return { countryCode: parsed.getCountryCode(), nationalNumber: parsed.getNationalNumber() }

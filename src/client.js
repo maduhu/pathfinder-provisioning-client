@@ -4,13 +4,13 @@ const P = require('bluebird')
 const SoapClient = require('./soap')
 const Result = require('./result')
 const Phone = require('./phone')
+const Errors = require('./errors')
 
 class Client {
   constructor (opts) {
     this._address = opts.address
     this._operation = opts.operation || 'Request'
     this._namespace = opts.namespace || 'http://www.neustar.biz/sip_ix/prov'
-    this._action = opts.action || ''
 
     this._options = { namespace: this._namespace }
   }
@@ -66,7 +66,7 @@ class Client {
 
   _createOrUpdateProfile (method, profile) {
     if (profile.records.length === 0) {
-      return P.reject(new Error('Profile must contain at least one record'))
+      return P.reject(new Errors.NoProfileRecordsError())
     }
 
     const body = profile.toSoap()
@@ -93,7 +93,7 @@ class Client {
   }
 
   _sendRequest (req) {
-    return SoapClient.request(this._address, this._operation, this._action, req, this._options)
+    return SoapClient.request(this._address, this._operation, req, this._options)
   }
 
   _createPhoneNumberField (parsed) {

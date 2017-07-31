@@ -4,6 +4,7 @@ const src = '../../../src'
 const Test = require('tapes')(require('tape'))
 const Sinon = require('sinon')
 const P = require('bluebird')
+const Errors = require(`${src}/errors`)
 const Proxyquire = require('proxyquire')
 
 Test('SoapClient', soapClientTest => {
@@ -36,7 +37,6 @@ Test('SoapClient', soapClientTest => {
     requestTest.test('convert js to xml and make soap call', test => {
       let url = 'http://test.com'
       let op = 'Request'
-      let action = ''
       let ns = 'http://www.neustar.biz/sip_ix/prov'
 
       let obj = { root: 'hello' }
@@ -52,7 +52,7 @@ Test('SoapClient', soapClientTest => {
       let responseObj = {}
       toJsStub.returns(P.resolve(responseObj))
 
-      SoapClient.request(url, op, action, obj, { namespace: ns })
+      SoapClient.request(url, op, obj, { namespace: ns })
         .then(r => {
           test.ok(promisifyStub.calledWith(postStub, Sinon.match({ multiArgs: true })))
           test.ok(postStub.calledWith(Sinon.match({
@@ -69,7 +69,6 @@ Test('SoapClient', soapClientTest => {
     requestTest.test('handle no namespace for operation', test => {
       let url = 'http://test.com'
       let op = 'Request'
-      let action = ''
 
       let obj = { root: 'hello' }
       let xml = '<root>hello</root>'
@@ -84,7 +83,7 @@ Test('SoapClient', soapClientTest => {
       let responseObj = {}
       toJsStub.returns(P.resolve(responseObj))
 
-      SoapClient.request(url, op, action, obj, {})
+      SoapClient.request(url, op, obj, {})
         .then(r => {
           test.ok(postStub.calledWith(Sinon.match({
             url,
@@ -98,7 +97,6 @@ Test('SoapClient', soapClientTest => {
     requestTest.test('throw error if soap call response code not 200', test => {
       let url = 'http://test.com'
       let op = 'Request'
-      let action = ''
       let ns = 'http://www.neustar.biz/sip_ix/prov'
 
       let obj = { root: 'hello' }
@@ -111,12 +109,12 @@ Test('SoapClient', soapClientTest => {
       postStub.returns(P.resolve([response, responseXml]))
       promisifyStub.returns(postStub)
 
-      SoapClient.request(url, op, action, obj, { namespace: ns })
+      SoapClient.request(url, op, obj, { namespace: ns })
         .then(r => {
           test.fail('Should have thrown error')
           test.end()
         })
-        .catch(err => {
+        .catch(Errors.HttpStatusError, err => {
           test.equal(err.message, `Error with HTTP status code ${response.statusCode}: ${responseXml}`)
           test.end()
         })
