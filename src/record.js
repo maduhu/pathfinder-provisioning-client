@@ -11,7 +11,7 @@ class Record {
     this.domain = opts.domain || 'e164enum.net'
     this.replacement = opts.replacement || '.'
     this.partnerId = opts.partnerId || -1
-    this.flags = opts.flags || 'U'
+    this.flags = opts.flags || 'u'
   }
 
   toSoap () {

@@ -66,7 +66,7 @@ Test('Record', recordTest => {
       test.equal(record.domain, 'e164enum.net')
       test.equal(record.replacement, '.')
       test.equal(record.partnerId, -1)
-      test.equal(record.flags, 'U')
+      test.equal(record.flags, 'u')
 
       test.end()
     })
