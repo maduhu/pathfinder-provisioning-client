@@ -1,5 +1,6 @@
 'use strict'
 
+const Config = require('./config')
 const Provisioning = require('../src')
 
 const args = process.argv.slice(2)
@@ -10,7 +11,9 @@ if (args.length === 0) {
 
 const profileId = args[0]
 
-const client = Provisioning.createClient({ address: 'https://pathfinder-cte-pi.neustar.biz/nrs-pi/services/SIPIX/SendRequest' })
+const address = args.length >= 2 ? (args[1] === 'local' ? Config.LOCAL_ADDRESS : Config.CTE_ADDRESS) : Config.CTE_ADDRESS
+
+const client = Provisioning.createClient({ address })
 
 client.getActivatedPhoneNumbers(profileId)
   .then(response => {

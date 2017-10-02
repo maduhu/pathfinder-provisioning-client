@@ -194,6 +194,72 @@ Test('Client', clientTest => {
     updateProfileTest.end()
   })
 
+  clientTest.test('changePhoneNumberStatus should', changeNumberStatusTest => {
+    changeNumberStatusTest.test('send ChangeTN message and return response', test => {
+      let opts = { address: 'test.com' }
+      let status = 'inactive'
+      let profileId = 'MyProfile'
+      let countryCode = 1
+      let nationalNumber = 5158675309
+      let phoneNumber = `+${countryCode}${nationalNumber}`
+
+      Phone.parse.returns({ nationalNumber, countryCode })
+
+      let result = {}
+      SoapClient.request.returns(P.resolve(result))
+
+      let baseResult = { code: 200 }
+      Result.base.returns(baseResult)
+
+      let client = createClient(opts)
+
+      client.changePhoneNumberStatus(phoneNumber, profileId, status)
+        .then(res => {
+          test.ok(Phone.parse.calledWith(phoneNumber))
+
+          let message = SoapClient.request.firstCall.args[2]
+          test.ok(message.ChangeTN)
+          test.ok(message.ChangeTN.TransactionID)
+          test.ok(message.ChangeTN.TN)
+          test.equal(message.ChangeTN.TN.Base, nationalNumber)
+          test.equal(message.ChangeTN.TN.CountryCode, countryCode)
+          test.equal(message.ChangeTN.DNSProfileID, profileId)
+          test.equal(message.ChangeTN.Status, status)
+          test.equal(message.ChangeTN.Tier, 2)
+          test.ok(SoapClient.request.calledWith(client._address, client._operation, message, client._options))
+          test.ok(Result.base.calledWith(result))
+          test.equal(res, baseResult)
+          test.end()
+        })
+    })
+
+    changeNumberStatusTest.test('handle parse error', test => {
+      let opts = { address: 'test.com' }
+      let status = 'inactive'
+      let profileId = 'MyProfile'
+      let countryCode = 1
+      let nationalNumber = 5158675309
+      let phoneNumber = `+${countryCode}${nationalNumber}`
+
+      let parseError = new Errors.InvalidPhoneNumberError()
+      Phone.parse.throws(parseError)
+
+      let client = createClient(opts)
+
+      client.changePhoneNumberStatus(phoneNumber, profileId, status)
+        .then(res => {
+          test.fail('Should have thrown error')
+          test.end()
+        })
+        .catch(Errors.InvalidPhoneNumberError, err => {
+          test.equal(err, parseError)
+          test.end()
+        })
+    })
+
+    changeNumberStatusTest.end()
+  })
+
   clientTest.test('activatePhoneNumber should', activateNumberTest => {
     activateNumberTest.test('send Activate message and return response', test => {
       let opts = { address: 'test.com' }

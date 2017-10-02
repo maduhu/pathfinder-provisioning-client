@@ -15,6 +15,16 @@ class Client {
     this._options = { namespace: this._namespace }
   }
 
+  changePhoneNumberStatus (phone, profileId, status) {
+    return this._parsePhoneNumber(phone).then(parsed => {
+      const body = this._createPhoneNumberField(parsed)
+      body['Status'] = status
+      body['DNSProfileID'] = profileId
+
+      return this._sendRequest(this._buildRequest('ChangeTN', body)).then(Result.base)
+    })
+  }
+
   getActivatedPhoneNumbers (profileId) {
     return this._sendRequest(this._buildRequest('QueryTN', { 'DNSProfileID': profileId })).then(Result.queryNumber)
   }

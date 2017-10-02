@@ -1,5 +1,6 @@
 'use strict'
 
+const Config = require('./config')
 const Provisioning = require('../src')
 
 const args = process.argv.slice(2)
@@ -10,9 +11,11 @@ if (args.length === 0) {
 
 const profileId = args[0]
 
-const client = Provisioning.createClient({ address: 'https://pathfinder-cte-pi.neustar.biz/nrs-pi/services/SIPIX/SendRequest' })
+const address = args.length >= 2 ? (args[1] === 'local' ? Config.LOCAL_ADDRESS : Config.CTE_ADDRESS) : Config.CTE_ADDRESS
 
-let record = Provisioning.Record({ order: 10, preference: 5, service: 'E2U+mm', partnerId: 10305, regexp: { pattern: '^.*$', replace: 'mm:001.504@leveloneproject.org' } })
+const client = Provisioning.createClient({ address })
+
+let record = Provisioning.Record({ order: 10, preference: 5, service: 'E2U+mm', partnerId: 10305, regexp: { pattern: '^.*$', replace: 'mm:001.321@leveloneproject.org' } })
 let record2 = Provisioning.Record({ order: 10, preference: 15, service: 'E2U+mm', partnerId: 10305, regexp: { pattern: '^.*$', replace: 'mm:001.123@leveloneproject.org' } })
 let profile = Provisioning.Profile({ id: profileId, records: [record, record2] })
 
